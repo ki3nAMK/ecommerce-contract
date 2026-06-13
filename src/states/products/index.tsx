@@ -66,7 +66,7 @@ export const ProductProvider = ({
 }) => {
     const [currentProductId, setCurrentProductId] = useState<string | null>(null);
     const [buyerId, setBuyerId] = useState<string | null>(null);
-    const { authenticated, loading: loadingAuth } = useAuthContext()
+    const { authenticated, user, loading: loadingAuth } = useAuthContext()
 
     /* ===================== ✅ PRODUCT LIST ===================== */
     const {
@@ -94,14 +94,20 @@ export const ProductProvider = ({
         },
     });
 
-    /* ===================== ✅ ORDER LIST BY BUYER ===================== */
+    /* ===================== ✅ ORDER LIST ===================== */
     const {
         data: orderResp,
         isLoading: orderLoading,
         refetch: refetchOrders,
     } = useQuery({
-        queryKey: ['orders'],
-        queryFn: async () => orderService.getOrdersByBuyer(),
+        queryKey: ['orders', user?.role, authenticated],
+        enabled: authenticated && !loadingAuth,
+        queryFn: async () => {
+            if (user?.role === 'SELLER') {
+                return orderService.getOrdersBySeller();
+            }
+            return orderService.getOrdersByBuyer();
+        },
         staleTime: 1000 * 60 * 5,
     });
 

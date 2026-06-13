@@ -105,8 +105,7 @@ export function ProductDetailsSummary({
         addToCart?.(product, data.quantity)
         toast.success('Add to cart successful!');
       }
-      onGotoStep?.(0);
-      // router.push(paths.product.checkout);
+      router.push(paths.dashboard.product.cart);
     } catch (error) {
       console.error(error);
     }

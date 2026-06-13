@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BrowserProvider, Contract, ethers } from 'ethers';
 import config from "@/config/blockchain.json";
 import { get } from 'lodash';
+import { toast } from 'sonner';
 
 // ----------------------------------------------------------------------
 // ENUM TRẠNG THÁI
@@ -39,6 +40,8 @@ export type IOrderProductItemExtended = IOrderProductItem & {
   remainingAmount?: number;
   status?: OrderType;
   escrow?: number;
+  isVerifyBySeller?: boolean;
+  orderContractId?: string;
 };
 
 // ----------------------------------------------------------------------
@@ -50,7 +53,8 @@ type Props = {
   subtotal?: number;
   totalAmount?: number;
   items?: IOrderProductItemExtended[];
-  orderId: string
+  orderId: string;
+  buyerAddress?: string;
 };
 
 // ----------------------------------------------------------------------
@@ -62,7 +66,8 @@ export function OrderDetailsItems({
   subtotal,
   items = [],
   totalAmount,
-  orderId
+  orderId,
+  buyerAddress
 }: Props) {
   const queryClient = useQueryClient();
   const [escrowContract, setEscrowContract] = useState<ethers.Contract | null>(null);
@@ -73,6 +78,11 @@ export function OrderDetailsItems({
     const network = await provider.getNetwork();
 
     const chainId = String(network.chainId) as keyof typeof config;
+
+    if (!config[chainId]) {
+      console.warn(`Chain ID ${chainId} is not configured in blockchain.json. Please switch MetaMask to Hardhat Localhost (Chain ID 31337).`);
+      return;
+    }
 
     const escrow = new Contract(
       config[chainId].escrow.address,
@@ -90,6 +100,17 @@ export function OrderDetailsItems({
 
   useEffect(() => {
     loadBlockchainData();
+
+    if ((window as any).ethereum) {
+      const handleChainChanged = () => {
+        window.location.reload();
+      };
+      (window as any).ethereum.on("chainChanged", handleChainChanged);
+
+      return () => {
+        (window as any).ethereum.removeListener("chainChanged", handleChainChanged);
+      };
+    }
   }, []);
 
   const updateStatusMutation = useMutation({
@@ -97,6 +118,8 @@ export function OrderDetailsItems({
       orderService.updateItemStatus(orderId, payload.data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['order-detail'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['product-detail'] });
     },
   });
 
@@ -151,7 +174,11 @@ export function OrderDetailsItems({
   );
 
   const toBytes32 = (hexId: string) => {
-    return "0x" + hexId.padStart(64, "0");
+    try {
+      return ethers.encodeBytes32String(hexId);
+    } catch (e) {
+      return "0x" + hexId.padStart(64, "0");
+    }
   };
 
 
@@ -176,14 +203,152 @@ export function OrderDetailsItems({
     const productIdBytes32 = toBytes32(get(item, "productId.id", ""));
     const orderIdBytes32 = toBytes32(get(item, "orderContractId", ""));
 
-    await callContract(
-      "depositEarnest",
-      [productIdBytes32, orderIdBytes32, item.quantity],
-      ethers.parseEther(String(escrowAmount))
-    );
+    const totalEscrow = (escrowAmount * item.quantity).toFixed(8).replace(/\.?0+$/, "");
 
-    handleUpdateStatus(item.productId.id, OrderType.DEPOSIT_ESCROW);
+    try {
+      const tx = await callContract(
+        "depositEarnest",
+        [productIdBytes32, orderIdBytes32, item.quantity],
+        ethers.parseEther(totalEscrow)
+      );
+      if (tx) {
+        toast.info("Transaction submitted. Waiting for confirmation...");
+        await tx.wait();
+        toast.success("Deposit Escrow successful!");
+        handleUpdateStatus(item.productId.id, OrderType.DEPOSIT_ESCROW);
+      }
+    } catch (error: any) {
+      console.error("depositEscrow error:", error);
+      toast.error(error?.reason || error?.message || "Transaction failed");
+    }
   }
+
+  const handleApproveProduct = async (item: IOrderProductItemExtended) => {
+    if (!buyerAddress) {
+      console.error("Buyer address is not available");
+      toast.error("Buyer address is not available");
+      return;
+    }
+    const productIdBytes32 = toBytes32(get(item, "productId.id", ""));
+    const orderIdBytes32 = toBytes32(get(item, "orderContractId", ""));
+
+    try {
+      const tx = await callContract(
+        "approveProduct",
+        [productIdBytes32, orderIdBytes32, buyerAddress.toLowerCase()]
+      );
+      if (tx) {
+        toast.info("Transaction approved. Waiting for confirmation...");
+        await tx.wait();
+        toast.success("Product approved successfully!");
+        updateStatusMutation.mutate({
+          data: {
+            productId: item.productId.id,
+            isVerifyBySeller: true
+          },
+        });
+      }
+    } catch (error: any) {
+      console.error("approveProduct error:", error);
+      toast.error(error?.reason || error?.message || "Transaction failed");
+    }
+  };
+
+  const handleDepositRemaining = async (item: IOrderProductItemExtended) => {
+    const orderIdBytes32 = toBytes32(get(item, "orderContractId", ""));
+
+    const price = (item.productId as any)?.price || 0;
+    const escrowAmount = (item.productId as any)?.escrow || 0;
+    const remainingPerUnit = price - escrowAmount;
+    const totalRemaining = (remainingPerUnit * item.quantity).toFixed(8).replace(/\.?0+$/, "");
+
+    try {
+      const tx = await callContract(
+        "depositRestAmount",
+        [orderIdBytes32],
+        ethers.parseEther(totalRemaining)
+      );
+      if (tx) {
+        toast.info("Remaining deposit transaction submitted. Waiting...");
+        await tx.wait();
+        toast.success("Remaining payment deposited successfully!");
+        handleUpdateStatus(item.productId.id, OrderType.FULLY_DEPOSITED);
+      }
+    } catch (error: any) {
+      console.error("depositRemaining error:", error);
+      toast.error(error?.reason || error?.message || "Transaction failed");
+    }
+  };
+
+  const handleFinalizeOrder = async (item: IOrderProductItemExtended) => {
+    if (!buyerAddress) {
+      console.error("Buyer address is not available");
+      toast.error("Buyer address is not available");
+      return;
+    }
+    const orderIdBytes32 = toBytes32(get(item, "orderContractId", ""));
+
+    try {
+      const tx = await callContract(
+        "finalizeOrder",
+        [orderIdBytes32, buyerAddress.toLowerCase()]
+      );
+      if (tx) {
+        toast.info("Finalizing transaction submitted. Waiting...");
+        await tx.wait();
+        toast.success("Order finalized successfully!");
+        handleUpdateStatus(item.productId.id, OrderType.SELLER_FINALIZED);
+      }
+    } catch (error: any) {
+      console.error("finalizeOrder error:", error);
+      toast.error(error?.reason || error?.message || "Transaction failed");
+    }
+  };
+
+  const handleConfirmReceived = async (item: IOrderProductItemExtended) => {
+    const orderIdBytes32 = toBytes32(get(item, "orderContractId", ""));
+
+    try {
+      const tx = await callContract(
+        "approveReceiveProduct",
+        [orderIdBytes32]
+      );
+      if (tx) {
+        toast.info("Confirming delivery transaction submitted...");
+        await tx.wait();
+        toast.success("Delivery confirmed successfully!");
+        handleUpdateStatus(item.productId.id, OrderType.ORDER_RECEIVED);
+      }
+    } catch (error: any) {
+      console.error("confirmReceived error:", error);
+      toast.error(error?.reason || error?.message || "Transaction failed");
+    }
+  };
+
+  const handleRewardOrder = async (item: IOrderProductItemExtended) => {
+    if (!buyerAddress) {
+      console.error("Buyer address is not available");
+      toast.error("Buyer address is not available");
+      return;
+    }
+    const orderIdBytes32 = toBytes32(get(item, "orderContractId", ""));
+
+    try {
+      const tx = await callContract(
+        "rewardOrder",
+        [orderIdBytes32, buyerAddress.toLowerCase()]
+      );
+      if (tx) {
+        toast.info("Rewarding transaction submitted...");
+        await tx.wait();
+        toast.success("Funds rewarded and order completed!");
+        handleUpdateStatus(item.productId.id, OrderType.DONE);
+      }
+    } catch (error: any) {
+      console.error("rewardOrder error:", error);
+      toast.error(error?.reason || error?.message || "Transaction failed");
+    }
+  };
 
 
   // ----------------------------------------------------------------------
@@ -228,6 +393,15 @@ export function OrderDetailsItems({
           );
 
         case OrderType.DEPOSIT_ESCROW:
+          if (!item.isVerifyBySeller) {
+            return (
+              <Chip label="Waiting for seller approval" color="warning" size="small" />
+            );
+          }
+          const price = (item.productId as any)?.price || 0;
+          const escrowAmount = (item.productId as any)?.escrow || 0;
+          const calculatedRemaining = (price - escrowAmount) * item.quantity;
+          const displayRemaining = item.remainingAmount || calculatedRemaining;
           return (
             <Button
               size="small"
@@ -235,9 +409,9 @@ export function OrderDetailsItems({
               color="secondary"
               startIcon={<Iconify icon="solar:money-bag-bold" />}
               disabled={loading}
-              onClick={() => handleUpdateStatus(item.productId.id, OrderType.FULLY_DEPOSITED)}
+              onClick={() => handleDepositRemaining(item)}
             >
-              Deposit Remaining {fEth(item.remainingAmount || 0)}
+              Deposit Remaining {fEth(displayRemaining)}
             </Button>
           );
 
@@ -249,7 +423,7 @@ export function OrderDetailsItems({
               color="success"
               startIcon={<Iconify icon="solar:box-bold" />}
               disabled={loading}
-              onClick={() => handleUpdateStatus(item.productId.id, OrderType.ORDER_RECEIVED)}
+              onClick={() => handleConfirmReceived(item)}
             >
               Confirm Received
             </Button>
@@ -273,6 +447,25 @@ export function OrderDetailsItems({
     // SELLER ACTIONS
     if (isSeller) {
       switch (status) {
+        case OrderType.DEPOSIT_ESCROW:
+          if (!item.isVerifyBySeller) {
+            return (
+              <Button
+                size="small"
+                variant="contained"
+                color="warning"
+                startIcon={<Iconify icon="solar:check-circle-bold" />}
+                disabled={loading}
+                onClick={() => handleApproveProduct(item)}
+              >
+                Approve Product
+              </Button>
+            );
+          }
+          return (
+            <Chip label="Approved, waiting for remaining deposit" color="info" size="small" />
+          );
+
         case OrderType.FULLY_DEPOSITED:
           return (
             <Button
@@ -281,7 +474,7 @@ export function OrderDetailsItems({
               color="info"
               startIcon={<Iconify icon="solar:check-circle-bold" />}
               disabled={loading}
-              onClick={() => handleUpdateStatus(item.productId.id, OrderType.SELLER_FINALIZED)}
+              onClick={() => handleFinalizeOrder(item)}
             >
               Finalize Order
             </Button>
@@ -291,7 +484,18 @@ export function OrderDetailsItems({
           return <Chip label="You finalized" color="primary" size="small" />;
 
         case OrderType.ORDER_RECEIVED:
-          return <Chip label="Buyer received" color="success" size="small" />;
+          return (
+            <Button
+              size="small"
+              variant="contained"
+              color="success"
+              startIcon={<Iconify icon="solar:card-transfer-bold" />}
+              disabled={loading}
+              onClick={() => handleRewardOrder(item)}
+            >
+              Complete & Reward Order
+            </Button>
+          );
 
         default:
           return null;

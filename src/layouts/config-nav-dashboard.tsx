@@ -98,10 +98,6 @@ export const sellerNavData = [
         title: 'Order',
         path: paths.dashboard.seller.order.root,
         icon: ICONS.order,
-        children: [
-          { title: 'List', path: paths.dashboard.seller.order.root },
-          // { title: 'Details', path: paths.dashboard.seller.order.detail },
-        ],
       },
     ]
   }
@@ -121,10 +117,6 @@ export const clientNavData = [
         title: 'Order',
         path: paths.dashboard.user.order.root,
         icon: ICONS.order,
-        children: [
-          { title: 'List', path: paths.dashboard.user.order.root },
-          // { title: 'Details', path: paths.dashboard.seller.order.detail },
-        ],
       },
     ]
   }

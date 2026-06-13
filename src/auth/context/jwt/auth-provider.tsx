@@ -73,10 +73,10 @@ export function AuthProvider({ children }: Props) {
     try {
       const signature = await web3Instance.eth.personal.sign(
         `I am signing my one-time nonce: ${nonce}`,
-        publicAddress,
+        publicAddress.toLowerCase(),
         ""
       );
-      return { publicAddress, signature };
+      return { publicAddress: publicAddress.toLowerCase(), signature };
     } catch (err) {
       throw new Error(
         "You need to sign the message to be able to log in."
@@ -160,6 +160,7 @@ export function AuthProvider({ children }: Props) {
 
       setUser(userInfo);
       setAuthenticated(true);
+      return userInfo;
     } catch (err) {
       toast.error("Authentication failed.");
       console.error("authenticate error:", err);

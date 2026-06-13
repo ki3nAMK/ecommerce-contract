@@ -3,6 +3,7 @@ import type { IProductItem } from 'src/types/product';
 import useSWR from 'swr';
 import { useMemo } from 'react';
 
+import productService from 'src/lib/service/product.service';
 import { fetcher, endpoints } from 'src/utils/axios';
 
 // ----------------------------------------------------------------------
@@ -15,24 +16,25 @@ const swrOptions = {
 
 // ----------------------------------------------------------------------
 
-type ProductsData = {
-  products: IProductItem[];
-};
-
 export function useGetProducts() {
-  const url = endpoints.product.list;
-
-  const { data, isLoading, error, isValidating } = useSWR<ProductsData>(url, fetcher, swrOptions);
+  const { data, isLoading, error, isValidating } = useSWR(
+    'products-me',
+    async () => {
+      const res = await productService.getMyProducts();
+      return Array.isArray(res) ? res : (res?.data || []);
+    },
+    swrOptions
+  );
 
   const memoizedValue = useMemo(
     () => ({
-      products: data?.products || [],
+      products: data || [],
       productsLoading: isLoading,
       productsError: error,
       productsValidating: isValidating,
-      productsEmpty: !isLoading && !data?.products.length,
+      productsEmpty: !isLoading && !data?.length,
     }),
-    [data?.products, error, isLoading, isValidating]
+    [data, error, isLoading, isValidating]
   );
 
   return memoizedValue;

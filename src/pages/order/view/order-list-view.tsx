@@ -15,6 +15,7 @@ import IconButton from '@mui/material/IconButton';
 
 import { paths } from 'src/routes/paths';
 import { useRouter } from 'src/routes/hooks';
+import { useAuthContext } from 'src/auth/hooks';
 
 import { useBoolean } from 'src/hooks/use-boolean';
 import { useSetState } from 'src/hooks/use-set-state';
@@ -23,7 +24,7 @@ import { fIsAfter, fIsBetween } from 'src/utils/format-time';
 
 import { varAlpha } from 'src/theme/styles';
 import { DashboardContent } from 'src/layouts/dashboard';
-import { _orders, ORDER_STATUS_OPTIONS } from 'src/_mock';
+import { _orders, ORDER_STATUS_OPTIONS, normalizeOrder } from 'src/_mock';
 
 import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
@@ -70,6 +71,8 @@ const TABLE_HEAD = [
 // ----------------------------------------------------------------------
 
 export function OrderListView() {
+  const { user } = useAuthContext();
+
   const table = useTable({ defaultOrderBy: 'orderNumber' });
 
   const router = useRouter();
@@ -80,7 +83,11 @@ export function OrderListView() {
   const { orders } = useProducts()
 
   useEffect(() => {
-    setTableData(orders as any)
+    if (orders) {
+      setTableData(orders.map((ord) => normalizeOrder(ord)) as any);
+    } else {
+      setTableData([]);
+    }
   }, [orders])
 
   const filters = useSetState<IOrderTableFilters>({
@@ -136,9 +143,12 @@ export function OrderListView() {
 
   const handleViewRow = useCallback(
     (id: string) => {
-      router.push(replace(paths.dashboard.seller.order.detail, '_ID', id));
+      const targetPath = user?.role === 'SELLER'
+        ? paths.dashboard.seller.order.detail
+        : paths.dashboard.user.order.detail;
+      router.push(replace(targetPath, '_ID', id));
     },
-    [router]
+    [router, user]
   );
 
   const handleFilterStatus = useCallback(

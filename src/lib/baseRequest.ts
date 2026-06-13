@@ -184,6 +184,6 @@ class Http {
 }
 
 export const http = new Http({
-  baseURL: `${import.meta.env.VITE_SERVER_URI}`,
+  baseURL: `${import.meta.env.VITE_SERVER_URL}`,
   credentials: 'omit',
 });

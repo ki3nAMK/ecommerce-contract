@@ -130,16 +130,39 @@ const calculateTotals = (items: any[]) => {
 };
 
 export function normalizeOrder(apiOrder: any) {
+  console.log("normalizeOrder: apiOrder =", apiOrder);
   const { subtotal, totalQuantity } = calculateTotals(apiOrder.items);
 
   const totalAmount = subtotal + MOCK_EXTRA.taxes + MOCK_EXTRA.shipping - MOCK_EXTRA.discount;
 
+  const customer = apiOrder.buyer && typeof apiOrder.buyer === 'object' ? {
+    id: apiOrder.buyer._id || apiOrder.buyer.id,
+    name: apiOrder.buyer.name || 'Anonymous Buyer',
+    email: apiOrder.buyer.email || 'buyer@example.com',
+    avatarUrl: apiOrder.buyer.avatar || apiOrder.buyer.avatarUrl || MOCK_EXTRA.customer.avatarUrl,
+    ipAddress: '192.158.1.38',
+  } : MOCK_EXTRA.customer;
+
+  const statuses = (apiOrder.items || []).map((item: any) => item.status);
+  let status = 'pending';
+  if (statuses.length > 0) {
+    if (statuses.every((s: any) => s === 'DONE')) {
+      status = 'completed';
+    } else if (statuses.every((s: any) => s === 'CANCLED')) {
+      status = 'cancelled';
+    } else if (statuses.every((s: any) => s === 'ON_WAITING_REFUND')) {
+      status = 'refunded';
+    }
+  }
+
   return {
     ...apiOrder,
+    status,
     orderNumber: '#' + apiOrder.id.slice(-6),
     subtotal,
     totalQuantity,
     totalAmount,
     ...MOCK_EXTRA,
+    customer,
   };
 }

@@ -23,7 +23,8 @@ export interface ICreateOrderPayload {
 
 export interface IUpdateItemStatusPayload {
     productId: string;
-    status: string;
+    status?: string;
+    isVerifyBySeller?: boolean;
 }
 
 
@@ -39,6 +40,12 @@ const orderService = {
         http.axios.request({
             method: "GET",
             url: `/orders/buyer`,
+        }),
+
+    getOrdersBySeller: (): Promise<IOrderListResponse> =>
+        http.axios.request({
+            method: "GET",
+            url: `/orders/seller`,
         }),
 
     getOrdersDetail: (id: string): Promise<IOrder> =>

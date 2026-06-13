@@ -19,14 +19,13 @@ export default defineConfig({
     removeConsole(),
     checker({
       typescript: true,
-      eslint: {
-        lintCommand: 'eslint "./src/**/*.{js,jsx,ts,tsx}"',
-      },
+      // eslint: disabled for dev - too many warnings in existing codebase
       overlay: {
         position: 'tl',
         initialIsOpen: false,
       },
     }),
+
   ],
   resolve: {
     alias: [

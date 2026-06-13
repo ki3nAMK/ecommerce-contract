@@ -23,7 +23,7 @@ import { Iconify } from 'src/components/iconify';
 import { Scrollbar } from 'src/components/scrollbar';
 import { AnimateAvatar } from 'src/components/animate';
 
-import { useMockedUser } from 'src/auth/hooks';
+import { useMockedUser, useAuthContext } from 'src/auth/hooks';
 
 import { UpgradeBlock } from './nav-upgrade';
 import { AccountButton } from './account-button';
@@ -48,6 +48,7 @@ export function AccountDrawer({ data = [], sx, ...other }: AccountDrawerProps) {
   const pathname = usePathname();
 
   const { user } = useMockedUser();
+  const { user: authUser } = useAuthContext();
 
   const [open, setOpen] = useState(false);
 
@@ -67,11 +68,15 @@ export function AccountDrawer({ data = [], sx, ...other }: AccountDrawerProps) {
     [handleCloseDrawer, router]
   );
 
+  const displayName = authUser?.name || user?.displayName;
+  const email = authUser?.email || user?.email;
+  const photoURL = authUser?.avatar || user?.photoURL;
+
   const renderAvatar = (
     <AnimateAvatar
       width={96}
       slotProps={{
-        avatar: { src: user?.photoURL, alt: user?.displayName },
+        avatar: { src: photoURL, alt: displayName },
         overlay: {
           border: 2,
           spacing: 3,
@@ -79,7 +84,7 @@ export function AccountDrawer({ data = [], sx, ...other }: AccountDrawerProps) {
         },
       }}
     >
-      {user?.displayName?.charAt(0).toUpperCase()}
+      {displayName?.charAt(0).toUpperCase()}
     </AnimateAvatar>
   );
 
@@ -88,8 +93,8 @@ export function AccountDrawer({ data = [], sx, ...other }: AccountDrawerProps) {
       <AccountButton
         open={open}
         onClick={handleOpenDrawer}
-        photoURL={user?.photoURL}
-        displayName={user?.displayName}
+        photoURL={photoURL}
+        displayName={displayName}
         sx={sx}
         {...other}
       />
@@ -113,11 +118,11 @@ export function AccountDrawer({ data = [], sx, ...other }: AccountDrawerProps) {
             {renderAvatar}
 
             <Typography variant="subtitle1" noWrap sx={{ mt: 2 }}>
-              {user?.displayName}
+              {displayName}
             </Typography>
 
             <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }} noWrap>
-              {user?.email}
+              {email}
             </Typography>
           </Stack>
 
@@ -185,6 +190,27 @@ export function AccountDrawer({ data = [], sx, ...other }: AccountDrawerProps) {
                 </MenuItem>
               );
             })}
+
+            {/* DYNAMIC MY ORDERS OPTION BASED ON ROLE */}
+            {authUser && (
+              <MenuItem
+                onClick={() => {
+                  const targetPath = authUser.role === 'SELLER' ? '/seller/order' : '/user/order';
+                  handleClickItem(targetPath);
+                }}
+                sx={{
+                  py: 1,
+                  color: 'text.secondary',
+                  '& svg': { width: 24, height: 24 },
+                  '&:hover': { color: 'text.primary' },
+                }}
+              >
+                <Iconify icon="solar:clipboard-list-bold-duotone" />
+                <Box component="span" sx={{ ml: 2 }}>
+                  My Orders
+                </Box>
+              </MenuItem>
+            )}
           </Stack>
 
           <Box sx={{ px: 2.5, py: 3 }}>

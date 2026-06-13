@@ -57,6 +57,7 @@ export function OrderDetailsView({ order, id }: Props) {
               subtotal={data?.subtotal}
               totalAmount={data?.totalAmount}
               orderId={id}
+              buyerAddress={data?.buyer?.publicAddress}
             />
 
             <OrderDetailsHistory history={data?.history} />

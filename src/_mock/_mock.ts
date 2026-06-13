@@ -75,12 +75,12 @@ export const _mock = {
   },
   // Image
   image: {
-    cover: (index: number) => `${assetURL}/assets/images/cover/cover-${index + 1}.webp`,
-    avatar: (index: number) => `${assetURL}/assets/images/avatar/avatar-${index + 1}.webp`,
-    travel: (index: number) => `${assetURL}/assets/images/travel/travel-${index + 1}.webp`,
-    course: (index: number) => `${assetURL}/assets/images/course/course-${index + 1}.webp`,
-    company: (index: number) => `${assetURL}/assets/images/company/company-${index + 1}.webp`,
-    product: (index: number) => `${assetURL}/assets/images/m-product/product-${index + 1}.webp`,
+    cover: (index: number) => `${assetURL}/assets/images/mock/cover/cover-${index + 1}.webp`,
+    avatar: (index: number) => `${assetURL}/assets/images/mock/avatar/avatar-${index + 1}.webp`,
+    travel: (index: number) => `${assetURL}/assets/images/mock/travel/travel-${index + 1}.webp`,
+    course: (index: number) => `${assetURL}/assets/images/mock/course/course-${index + 1}.webp`,
+    company: (index: number) => `${assetURL}/assets/images/mock/company/company-${index + 1}.webp`,
+    product: (index: number) => `${assetURL}/assets/images/mock/m-product/product-${index + 1}.webp`,
     portrait: (index: number) => `${assetURL}/assets/images/portrait/portrait-${index + 1}.webp`,
   },
 };

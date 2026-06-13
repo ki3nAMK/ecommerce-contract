@@ -243,7 +243,10 @@ export function HeaderBase({
                 }}
                 onClick={async () => {
                   if (typeof (window as any).ethereum !== 'undefined') {
-                    await loginByMetamask()
+                    const loggedInUser = await loginByMetamask();
+                    if (loggedInUser && loggedInUser.role === 'SELLER') {
+                      router.push('/seller/order');
+                    }
                   } else {
                     toast.error('MetaMask not installed!');
                   }

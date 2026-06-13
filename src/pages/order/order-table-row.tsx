@@ -30,7 +30,7 @@ import { useAuthContext } from '@/auth/hooks';
 // ----------------------------------------------------------------------
 
 type Props = {
-  row: IOrder;
+  row: IOrderItem;
   selected: boolean;
   onViewRow: () => void;
   onSelectRow: () => void;
@@ -48,7 +48,7 @@ export function OrderTableRow({ row, selected, onViewRow, onSelectRow, onDeleteR
   const totalQuantity = row.items.reduce((sum, item) => sum + item.quantity, 0);
 
   const subtotal = row.items.reduce(
-    (sum, item) => sum + (item.productId?.price || 0) * item.quantity,
+    (sum, item) => sum + ((item.productId as any)?.price || 0) * item.quantity,
     0
   );
 
@@ -70,12 +70,12 @@ export function OrderTableRow({ row, selected, onViewRow, onSelectRow, onDeleteR
 
       <TableCell>
         <Stack spacing={2} direction="row" alignItems="center">
-          <Avatar alt={get(row, 'customer.name', user?.name)} src={user?.avatar} />
+          <Avatar alt={row.customer?.name} src={row.customer?.avatarUrl} />
 
           <Stack sx={{ typography: 'body2', flex: '1 1 auto', alignItems: 'flex-start' }}>
-            <Box component="span">{user?.name}</Box>
+            <Box component="span">{row.customer?.name}</Box>
             <Box component="span" sx={{ color: 'text.disabled' }}>
-              {user?.email}
+              {row.customer?.email}
             </Box>
           </Stack>
         </Stack>
@@ -109,13 +109,14 @@ export function OrderTableRow({ row, selected, onViewRow, onSelectRow, onDeleteR
         <Label
           variant="soft"
           color={
-            // (row.status === 'completed' && 'success') ||
-            ('pending' === 'pending' && 'warning') ||
-            // (row.status === 'cancelled' && 'error') ||
+            (row.status === 'completed' && 'success') ||
+            (row.status === 'pending' && 'warning') ||
+            (row.status === 'cancelled' && 'error') ||
+            (row.status === 'refunded' && 'secondary') ||
             'default'
           }
         >
-          pending
+          {row.status}
         </Label>
       </TableCell>
 
